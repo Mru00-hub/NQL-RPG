@@ -10,6 +10,8 @@ import { Activity } from 'lucide-react'
 const AuthLayout = () => {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const { fetchUserStats } = useGameStore()
 
   useEffect(() => {
@@ -70,8 +72,7 @@ const AuthLayout = () => {
     )
   }
 
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  
 
   if (!session) {
     return (
