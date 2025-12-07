@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useGameStore } from './stores/gameStore'
 import Dashboard from './pages/Dashboard'
@@ -98,14 +98,14 @@ const AuthLayout = () => {
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route element={<AuthLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/quiz/:dayNumber" element={<ClinicalTerminal />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
