@@ -31,14 +31,24 @@ const Dashboard: React.FC = () => {
     if (data) setLeaderboard(data)
   }
 
+  const getWeekTitle = (day: number) => {
+    if (day <= 7) return "Week 1: Data Science & ML Foundations"
+    if (day <= 14) return "Week 2: AI in Clinical Practice"
+    if (day <= 21) return "Week 3: Generative AI & Advanced Models"
+    if (day <= 28) return "Week 4: Digital Health Infrastructure"
+    if (day <= 35) return "Week 5: Robotics & Emerging Tech"
+    if (day <= 42) return "Week 6: Governance, Privacy & Ethics"
+    return "Week 7: Innovation & Systems"
+  }
+
   return (
     <div className="min-h-screen bg-medical-dark text-slate-200 font-sans p-6 overflow-x-hidden">
       {/* Top HUD */}
       <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-slate-800 pb-6 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">COMMAND CENTER</h1>
+          <h1 className="text-3xl font-bold text-white tracking-tight">THE NEXUS</h1>
           <p className="text-medical-cyan font-clinical text-sm tracking-widest uppercase">
-            Deployment Map // Day {currentDay} of 45
+            {getWeekTitle(currentDay)} // Day {currentDay}
           </p>
         </div>
         

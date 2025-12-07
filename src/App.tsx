@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { useGameStore } from './stores/gameStore'
 import Dashboard from './pages/Dashboard'
@@ -10,8 +10,6 @@ import { Activity } from 'lucide-react'
 const AuthLayout = () => {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const { fetchUserStats } = useGameStore()
 
   useEffect(() => {
@@ -72,46 +70,23 @@ const AuthLayout = () => {
     )
   }
 
-  
-
   if (!session) {
+    // For this demo, we auto-login anonymously if no auth is present, 
+    // or you can redirect to a login page. 
+    // Implementing a simple prompt to login for the demo context.
     return (
       <div className="min-h-screen bg-medical-dark flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-medical-cyan/30 p-8 rounded-lg text-center shadow-[0_0_30px_rgba(0,188,212,0.1)]">
-          <h1 className="text-3xl font-bold text-white mb-6">MedNexus RPG</h1>
-          
-          <div className="space-y-4">
-            <input 
-              type="email" 
-              placeholder="Test Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 bg-slate-800 text-white rounded border border-slate-600 focus:border-medical-cyan outline-none"
-            />
-            <input 
-              type="password" 
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full p-3 bg-slate-800 text-white rounded border border-slate-600 focus:border-medical-cyan outline-none"
-            />
-            
-            <button 
-              onClick={async () => {
-                const { error } = await supabase.auth.signInWithPassword({
-                  email,
-                  password
-                })
-                if (error) alert(error.message)
-              }}
-              className="w-full py-3 bg-medical-cyan text-medical-dark font-bold rounded hover:bg-cyan-400 transition-colors"
-            >
-              Login (No Redirect)
-            </button>
-            
-            <div className="text-xs text-slate-500 mt-4">
-              Tip: Create a user in Supabase Dashboard first.
-            </div>
+          <h1 className="text-3xl font-bold text-white mb-2">MedNexus RPG</h1>
+          <p className="text-slate-400 mb-8">Identify yourself to access the Clinical Terminal.</p>
+          <button 
+            onClick={() => supabase.auth.signInWithOAuth({ provider: 'google' })}
+            className="w-full py-3 bg-medical-cyan text-medical-dark font-bold rounded hover:bg-cyan-400 transition-colors"
+          >
+            Authenticate Access
+          </button>
+          <div className="mt-4 text-xs text-slate-500 font-clinical">
+            AUTHORIZED PERSONNEL ONLY
           </div>
         </div>
       </div>
@@ -123,14 +98,14 @@ const AuthLayout = () => {
 
 function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         <Route element={<AuthLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/quiz/:dayNumber" element={<ClinicalTerminal />} />
         </Route>
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   )
 }
 
