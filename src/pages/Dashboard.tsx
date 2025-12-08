@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const getAssetUrl = (filename: string) => {
   const { data } = supabase.storage
     .from('public')
-    .getPublicUrl(`assets/${filename}`)
+    .getPublicUrl(`public-assets/${filename}`)
   return data.publicUrl
 }
 
