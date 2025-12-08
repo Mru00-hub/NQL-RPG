@@ -10,12 +10,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 // --- CONFIGURATION ---
 
-// 1. Helper to get the full Supabase Storage URL
-// Assumes bucket is named 'public' and files are in an 'assets' folder.
+// 1. Update bucket name to match yours exactly
+const BUCKET_NAME = 'public-assets';
+
 const getAssetUrl = (filename: string) => {
+  // 2. If files are directly in the bucket root, path is just the filename
+  const path = filename;
+  
   const { data } = supabase.storage
-    .from('public')
-    .getPublicUrl(`public-assets/${filename}`)
+    .from(BUCKET_NAME)
+    .getPublicUrl(path)
+
+  // Debugging: Check console to ensure URL looks like: .../storage/v1/object/public/public-assets/masterbg.jpg
+  console.log(`Generated URL for ${filename}:`, data.publicUrl);
   return data.publicUrl
 }
 
