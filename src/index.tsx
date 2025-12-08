@@ -3,6 +3,13 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 
+if (import.meta.env.DEV) {
+  import('eruda').then(({ default: eruda }) => {
+    eruda.init();
+    console.log("Eruda mobile console initialized for debugging.");
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <App />
