@@ -74,9 +74,13 @@ const Dashboard: React.FC = () => {
     const fetchLB = async () => {
       const instId = userStats?.institution_id || null
       const { data } = await supabase.rpc('get_leaderboard', { 
-        institution_id_filter: lbMode === 'institution' ? instId : null
+        p_institution_id: lbMode === 'institution' ? instId : null,
+        // You can also pass p_user_role if you want to filter by that
       })
-      if (data) setLeaderboard(data)
+      
+      if (data && data.leaderboard) {
+        setLeaderboard(data.leaderboard)
+      }
     }
     fetchLB()
   }, [lbMode, userStats])
