@@ -14,7 +14,7 @@ type Option = {
 }
 
 type Question = {
-  id: string
+  id: string // Frontend uses 'id'
   day_number: number
   level: number
   visual_scene: string | null
@@ -37,7 +37,7 @@ const ClinicalTerminal: React.FC = () => {
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [timeLeft, setTimeLeft] = useState(0)
   
-  // Ref to prevent double submission in Strict Mode
+  // Ref to prevent double submission
   const submissionRef = useRef(false)
 
   const currentQ = questions[currentIndex]
@@ -66,7 +66,7 @@ const ClinicalTerminal: React.FC = () => {
     return () => clearInterval(timer)
   }, [timeLeft, selectedOption, feedback, currentQ, loading])
 
-  // --- LOAD QUIZ ---
+  // --- LOAD QUIZ (WITH CRITICAL FIX) ---
   const loadQuiz = async () => {
     if (!dayNumber) return
     setLoading(true)
@@ -75,6 +75,8 @@ const ClinicalTerminal: React.FC = () => {
     if (data && data.length > 0) {
       const parsedQuestions = data.map((q: any) => ({
         ...q,
+        // CRITICAL FIX: Map the DB's 'question_id' to Frontend 'id'
+        id: q.question_id || q.id, 
         options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options
       }))
       setQuestions(parsedQuestions)
@@ -97,17 +99,20 @@ const ClinicalTerminal: React.FC = () => {
     const startTime = currentQ.time_limit_seconds
     const timeTaken = Math.max(0, startTime - timeLeft)
 
-    // FIX: Correct RPC parameters (p_...)
+    // Debugging: Ensure ID exists before sending
+    console.log("Submitting:", { qID: currentQ.id, opt: idx, time: timeTaken });
+
     const { data, error } = await supabase.rpc('submit_answer', {
-      p_question_id: currentQ.id,
+      p_question_id: currentQ.id, // This should now be defined!
       p_selected_option: idx,
       p_time_taken: timeTaken
     })
 
     if (error) {
       console.error("Submission Error:", error)
-      setFeedback('incorrect') // Default fail state on error
+      setFeedback('incorrect') // Visual feedback
     } else {
+      console.log("Submission Saved:", data)
       setFeedback(data.is_correct ? 'correct' : 'incorrect')
     }
 
@@ -131,7 +136,7 @@ const ClinicalTerminal: React.FC = () => {
           if (data.session) {
              fetchUserStats(data.session.user.id)
              if (dayNumber) {
-                 // Triggers the modal via store
+                 // ONLY Check for AI Feedback at the very end
                  checkForFeedback(parseInt(dayNumber))
              }
           }
@@ -244,7 +249,7 @@ const ClinicalTerminal: React.FC = () => {
                     `}>
                       {String.fromCharCode(65 + idx)}
                     </div>
-                    {/* FIX: Render text string, not object */}
+                    {/* Render text string, not object */}
                     <span className="flex-1 font-clinical text-lg">{option.text}</span>
                     
                     {feedback === 'correct' && selectedOption === optionIndex && <CheckCircle className="text-medical-success w-6 h-6" />}
@@ -255,7 +260,7 @@ const ClinicalTerminal: React.FC = () => {
             })}
           </div>
 
-          {/* Feedback Overlay Message - Only Visual */}
+          {/* Feedback Overlay - Only Visual */}
           <AnimatePresence>
             {feedback && (
               <motion.div 
