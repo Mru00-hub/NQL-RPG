@@ -10,12 +10,14 @@ import {
   CheckCircle, 
   PlayCircle,
   Users,
-  ChevronDown
+  ChevronDown,
+  Loader2
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 // Helper to get Week Name from Day Number
 const getWeekTitle = (day: number) => {
+  if (!day) return "Initializing..."
   if (day <= 7) return "Week 1: Data Science & ML Foundations"
   if (day <= 14) return "Week 2: AI in Clinical Practice"
   if (day <= 21) return "Week 3: Generative AI & Advanced Models"
@@ -27,6 +29,7 @@ const getWeekTitle = (day: number) => {
 
 // Helper to get Week Index (1-7) from Day Number
 const getWeekIndex = (day: number) => {
+  if (!day) return 1
   if (day <= 7) return 1
   if (day <= 14) return 2
   if (day <= 21) return 3
@@ -36,64 +39,72 @@ const getWeekIndex = (day: number) => {
   return 7
 }
 
+// Define weeks outside to prevent re-render cycles
+const WEEKS_DATA = [
+  { id: 1, title: "Week 1: Data Science" },
+  { id: 2, title: "Week 2: Clinical AI" },
+  { id: 3, title: "Week 3: Generative AI" },
+  { id: 4, title: "Week 4: Infrastructure" },
+  { id: 5, title: "Week 5: Robotics" },
+  { id: 6, title: "Week 6: Governance" },
+  { id: 7, title: "Week 7: Innovation" },
+]
+
 const Dashboard: React.FC = () => {
   const { userStats, syllabus, currentDay, fetchSyllabus } = useGameStore()
   const [leaderboard, setLeaderboard] = useState<any[]>([])
   const [lbMode, setLbMode] = useState<'national' | 'institution'>('national')
-  
-  // State for Week Navigation
-  const [selectedWeek, setSelectedWeek] = useState<number>(1) // Default to Week 1
+  const [selectedWeek, setSelectedWeek] = useState<number>(1)
   const [isWeekMenuOpen, setIsWeekMenuOpen] = useState(false)
 
   useEffect(() => {
     fetchSyllabus()
-    fetchLeaderboard()
-    // Auto-select the week corresponding to the user's current day
+  }, [])
+
+  useEffect(() => {
     if (currentDay) {
       setSelectedWeek(getWeekIndex(currentDay))
     }
-  }, [currentDay]) // Re-run when currentDay loads
+  }, [currentDay])
+
+  useEffect(() => {
+    fetchLeaderboard()
+  }, [lbMode, userStats]) // Re-fetch if mode or stats change
 
   const fetchLeaderboard = async () => {
+    // FIX: Safely handle the RPC call. Passing a rank number as ID was likely causing issues.
+    // If we don't have an institution ID, we shouldn't filter by it.
+    const instId = userStats?.institution_id || null
+    
     const { data } = await supabase.rpc('get_leaderboard', { 
-      institution_id_filter: lbMode === 'institution' ? userStats?.role_rank?.toString() : null
+      institution_id_filter: lbMode === 'institution' ? instId : null
     })
     if (data) setLeaderboard(data)
   }
 
-  // Filter syllabus based on selected week
-  const filteredTopics = syllabus.filter(topic => {
+  // FIX: Safety check (syllabus || []) prevents "filter of undefined" crash
+  const safeSyllabus = Array.isArray(syllabus) ? syllabus : []
+  
+  const filteredTopics = safeSyllabus.filter(topic => {
     const weekIdx = getWeekIndex(topic.day_number)
     return weekIdx === selectedWeek
   })
 
-  // Dropdown Options
-  const weeks = [
-    { id: 1, title: "Week 1: Data Science" },
-    { id: 2, title: "Week 2: Clinical AI" },
-    { id: 3, title: "Week 3: Generative AI" },
-    { id: 4, title: "Week 4: Infrastructure" },
-    { id: 5, title: "Week 5: Robotics" },
-    { id: 6, title: "Week 6: Governance" },
-    { id: 7, title: "Week 7: Innovation" },
-  ]
+  // Get current active week title safely
+  const activeWeekTitle = WEEKS_DATA.find(w => w.id === selectedWeek)?.title || "Select Module"
 
   return (
     <div className="min-h-screen bg-medical-dark text-slate-200 font-sans p-6 overflow-x-hidden">
       {/* Top HUD */}
       <header className="flex flex-col md:flex-row justify-between items-center mb-10 border-b border-slate-800 pb-6 gap-4">
         <div>
-          {/* 1. RENAMED TITLE */}
           <h1 className="text-3xl font-bold text-white tracking-tight">THE NEXUS</h1>
-          
-          {/* 2. DYNAMIC SUBTITLE */}
           <p className="text-medical-cyan font-clinical text-sm tracking-widest uppercase mt-1">
-            {getWeekTitle(currentDay)} // Day {currentDay} of 45
+            {getWeekTitle(currentDay || 1)} // Day {currentDay || 1} of 45
           </p>
         </div>
         
         <div className="flex gap-4">
-           {/* Stats Widgets (Unchanged) */}
            <div className="bg-slate-900/50 border border-slate-700 px-4 py-2 rounded flex items-center gap-3">
               <Target className="text-medical-cyan w-5 h-5" />
               <div>
@@ -120,10 +131,10 @@ const Dashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left: Deployment Map (Syllabus) */}
+        {/* Left: Deployment Map */}
         <div className="lg:col-span-8">
           
-          {/* 3. NEW WEEK NAVIGATOR (Dropdown) */}
+          {/* Week Navigator */}
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-white">Active Sector</h2>
             
@@ -133,7 +144,7 @@ const Dashboard: React.FC = () => {
                 className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-4 py-2 rounded hover:border-medical-cyan transition-colors"
               >
                 <span className="text-sm font-clinical text-medical-cyan">
-                  {weeks.find(w => w.id === selectedWeek)?.title}
+                  {activeWeekTitle}
                 </span>
                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isWeekMenuOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -146,7 +157,7 @@ const Dashboard: React.FC = () => {
                     exit={{ opacity: 0, y: 10 }}
                     className="absolute right-0 top-12 w-64 bg-slate-900 border border-slate-700 rounded shadow-xl z-20 overflow-hidden"
                   >
-                    {weeks.map((week) => (
+                    {WEEKS_DATA.map((week) => (
                       <button
                         key={week.id}
                         onClick={() => {
@@ -170,14 +181,15 @@ const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredTopics.length > 0 ? (
               filteredTopics.map((topic) => {
-                const isLocked = topic.day_number > currentDay
-                const isCompleted = topic.day_number < currentDay 
-                const isCurrent = topic.day_number === currentDay
+                const dayNum = topic.day_number || 0
+                const isLocked = dayNum > (currentDay || 1)
+                const isCompleted = dayNum < (currentDay || 1)
+                const isCurrent = dayNum === (currentDay || 1)
 
                 return (
                   <motion.div
                     key={topic.id}
-                    layout // Animates layout changes when switching weeks
+                    layout 
                     {...({
                       whileHover: !isLocked ? { scale: 1.02 } : {},
                       className: `
@@ -192,7 +204,7 @@ const Dashboard: React.FC = () => {
                     } as any)}
                   >
                     <div className="flex justify-between items-start">
-                      <span className="text-xs font-clinical font-bold opacity-70">DAY {topic.day_number}</span>
+                      <span className="text-xs font-clinical font-bold opacity-70">DAY {dayNum}</span>
                       {isLocked && <Lock className="w-4 h-4" />}
                       {isCompleted && <CheckCircle className="w-4 h-4 text-yellow-500" />}
                       {isCurrent && <Activity className="w-4 h-4 text-medical-cyan animate-pulse" />}
@@ -204,10 +216,10 @@ const Dashboard: React.FC = () => {
 
                     {!isLocked && (
                       <Link 
-                        to={`/quiz/${topic.day_number}`}
+                        to={`/quiz/${dayNum}`}
                         className="absolute inset-0 z-10"
                       >
-                        <span className="sr-only">Start Day {topic.day_number}</span>
+                        <span className="sr-only">Start Day {dayNum}</span>
                       </Link>
                     )}
                     
@@ -220,14 +232,21 @@ const Dashboard: React.FC = () => {
                 )
               })
             ) : (
-              <div className="col-span-full p-8 text-center text-slate-500 border border-slate-800 border-dashed rounded-xl">
-                Module Loading or Empty...
+              <div className="col-span-full p-12 text-center border border-slate-800 border-dashed rounded-xl flex flex-col items-center gap-4">
+                {safeSyllabus.length === 0 ? (
+                  <>
+                    <Loader2 className="w-8 h-8 text-medical-cyan animate-spin" />
+                    <p className="text-slate-500 font-clinical">Initializing Neural Link...</p>
+                  </>
+                ) : (
+                  <p className="text-slate-500">No modules found for this sector.</p>
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* Right: Leaderboard Widget (Unchanged) */}
+        {/* Right: Leaderboard Widget */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden sticky top-6">
             <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950">
@@ -286,3 +305,4 @@ const Dashboard: React.FC = () => {
 }
 
 export default Dashboard
+
