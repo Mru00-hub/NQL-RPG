@@ -6,6 +6,14 @@ import { useGameStore } from '../../stores/gameStore'
 import { Timer, AlertCircle, CheckCircle, Activity, Brain } from 'lucide-react'
 import AiFeedbackModal from './AiFeedbackModal'
 
+// 1. NEW: Define Option type based on DB query response
+type Option = {
+  id: string
+  index: number
+  text: string
+}
+
+// 2. CHANGE: Update Question type to use Option object
 type Question = {
   id: string
   day_number: number
@@ -14,7 +22,7 @@ type Question = {
   points: number
   time_limit_seconds: number
   question_text: string
-  options: string[]
+  options: Option[] // Changed from string[] to Option[]
 }
 
 const ClinicalTerminal: React.FC = () => {
@@ -59,9 +67,10 @@ const ClinicalTerminal: React.FC = () => {
   const loadQuiz = async () => {
     if (!dayNumber) return
     setLoading(true)
+    // RPC returns options as an array of objects
     const { data } = await supabase.rpc('get_daily_quiz', { day_num: parseInt(dayNumber) })
     if (data && data.length > 0) {
-      setQuestions(data)
+      setQuestions(data as Question[])
       setTimeLeft(data[0].time_limit_seconds)
     } else {
       // Handle empty or locked day
@@ -204,7 +213,9 @@ const ClinicalTerminal: React.FC = () => {
 
               return (
                 <button
-                  key={idx}
+                  // 3. CHANGE: Use option.id for key
+                  key={option.id}
+                  // idx is still the correct index for submission
                   onClick={() => handleOptionSelect(idx)}
                   disabled={selectedOption !== null}
                   className={`w-full p-6 text-left rounded-xl border transition-all duration-200 group relative overflow-hidden ${stateClass}`}
@@ -216,7 +227,8 @@ const ClinicalTerminal: React.FC = () => {
                     `}>
                       {String.fromCharCode(65 + idx)}
                     </div>
-                    <span className="flex-1 font-clinical text-lg">{option}</span>
+                    {/* 4. CHANGE: Render option.text */}
+                    <span className="flex-1 font-clinical text-lg">{option.text}</span>
                     {feedback === 'correct' && selectedOption === idx && <CheckCircle className="text-medical-success w-6 h-6" />}
                     {feedback === 'incorrect' && selectedOption === idx && <AlertCircle className="text-medical-alert w-6 h-6" />}
                   </div>
