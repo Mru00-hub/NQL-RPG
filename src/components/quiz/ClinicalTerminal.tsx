@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { supabase } from '../../lib/supabase'
@@ -6,7 +6,7 @@ import { useGameStore } from '../../stores/gameStore'
 import { Timer, AlertCircle, CheckCircle, Activity, Brain, ArrowRight } from 'lucide-react'
 import AiFeedbackModal from './AiFeedbackModal'
 
-// 1. Define strict types for the Option object
+// --- TYPES ---
 type Option = {
   id: string
   index: number
@@ -21,7 +21,7 @@ type Question = {
   points: number
   time_limit_seconds: number
   question_text: string
-  options: Option[] // Fix: Ensure this is Option[], not string[]
+  options: Option[]
 }
 
 const ClinicalTerminal: React.FC = () => {
@@ -37,8 +37,12 @@ const ClinicalTerminal: React.FC = () => {
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null)
   const [timeLeft, setTimeLeft] = useState(0)
   
+  // Ref to prevent double submission in Strict Mode
+  const submissionRef = useRef(false)
+
   const currentQ = questions[currentIndex]
 
+  // --- EFFECT: INITIAL LOAD ---
   useEffect(() => {
     if (dayNumber) {
       loadQuiz()
@@ -50,24 +54,25 @@ const ClinicalTerminal: React.FC = () => {
     }
   }, [dayNumber])
 
+  // --- EFFECT: TIMER ---
   useEffect(() => {
     let timer: any
-    if (timeLeft > 0 && !selectedOption && !feedback) {
+    if (timeLeft > 0 && !selectedOption && !feedback && !loading && currentQ) {
       timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000)
-    } else if (timeLeft === 0 && !selectedOption && currentQ && !feedback) {
-      // 2. Fix: Handle Time Out (Auto-submit as wrong or skip)
-      handleOptionSelect(-1); // -1 indicates timeout/skip
+    } else if (timeLeft === 0 && !selectedOption && currentQ && !feedback && !loading) {
+      // Time Out: Auto-submit as skipped (-1)
+      handleOptionSelect(-1)
     }
     return () => clearInterval(timer)
-  }, [timeLeft, selectedOption, feedback, currentQ])
+  }, [timeLeft, selectedOption, feedback, currentQ, loading])
 
+  // --- LOAD QUIZ ---
   const loadQuiz = async () => {
     if (!dayNumber) return
     setLoading(true)
     const { data } = await supabase.rpc('get_daily_quiz', { day_num: parseInt(dayNumber) })
     
     if (data && data.length > 0) {
-      // Ensure options are parsed correctly if Supabase returns them as a JSON string wrapper
       const parsedQuestions = data.map((q: any) => ({
         ...q,
         options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options
@@ -80,16 +85,19 @@ const ClinicalTerminal: React.FC = () => {
     setLoading(false)
   }
 
+  // --- HANDLE SUBMISSION ---
   const handleOptionSelect = async (idx: number) => {
+    // Prevent multiple submissions
     if (isProcessing || (selectedOption !== null && idx !== -1)) return
     
+    submissionRef.current = true
     setSelectedOption(idx)
     setIsProcessing(true)
 
     const startTime = currentQ.time_limit_seconds
-    const timeTaken = Math.max(0, startTime - timeLeft) // Prevent negative time
+    const timeTaken = Math.max(0, startTime - timeLeft)
 
-    // 3. Fix: Use correct parameter names (p_...) for SQL function
+    // FIX: Correct RPC parameters (p_...)
     const { data, error } = await supabase.rpc('submit_answer', {
       p_question_id: currentQ.id,
       p_selected_option: idx,
@@ -98,32 +106,38 @@ const ClinicalTerminal: React.FC = () => {
 
     if (error) {
       console.error("Submission Error:", error)
-      // On error, we might want to just move on or alert the user
-      // For now, let's treat it as a processed step so game doesn't hang
-      setFeedback('incorrect') 
+      setFeedback('incorrect') // Default fail state on error
     } else {
       setFeedback(data.is_correct ? 'correct' : 'incorrect')
     }
 
-    // Wait and advance
+    // Wait 1.5s then Advance
     setTimeout(() => {
       if (currentIndex < questions.length - 1) {
+        // Next Question
         const nextIndex = currentIndex + 1
         setCurrentIndex(nextIndex)
         setSelectedOption(null)
         setFeedback(null)
         setIsProcessing(false)
+        submissionRef.current = false
         setTimeLeft(questions[nextIndex].time_limit_seconds)
       } else {
-        // Quiz finished
+        // Quiz Complete
+        setIsProcessing(false)
+        
+        // Final Sync & Trigger AI Feedback Modal
         supabase.auth.getSession().then(({ data }) => {
           if (data.session) {
              fetchUserStats(data.session.user.id)
-             if (dayNumber) checkForFeedback(parseInt(dayNumber))
+             if (dayNumber) {
+                 // Triggers the modal via store
+                 checkForFeedback(parseInt(dayNumber))
+             }
           }
         })
       }
-    }, 2000) // 2 second delay to see the result
+    }, 1500)
   }
 
   if (loading) {
@@ -173,8 +187,7 @@ const ClinicalTerminal: React.FC = () => {
             {currentQ.question_text}
           </h2>
 
-          {/* 4. Fix: Cleaned up the 'Diagnostic Context' box */}
-          {/* Only show if we actually have text, and styling it as a "System Note" */}
+          {/* Diagnostic Context */}
           {currentQ.visual_scene && (
             <div className="p-4 bg-slate-950/80 border border-slate-800 rounded text-sm font-clinical text-slate-400 font-mono">
                <div className="flex items-center gap-2 mb-2 text-slate-500 uppercase text-[10px] tracking-widest">
@@ -185,14 +198,12 @@ const ClinicalTerminal: React.FC = () => {
           )}
         </div>
 
-        {/* CENTER: VEO Placeholder (3D Scan Animation) */}
+        {/* CENTER: VEO Placeholder */}
         <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-0 opacity-20 pointer-events-none">
           <motion.div 
-            {...({
-              animate: { rotate: 360 },
-              transition: { duration: 20, repeat: Infinity, ease: "linear" },
-              className: "w-96 h-96 border border-medical-cyan/30 rounded-full flex items-center justify-center relative"
-            } as any)}
+            animate={{ rotate: 360 }}
+            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            className="w-96 h-96 border border-medical-cyan/30 rounded-full flex items-center justify-center relative"
           >
             <div className="absolute inset-0 border border-medical-cyan/10 rounded-full scale-110" />
             <Brain className="w-32 h-32 text-medical-cyan" />
@@ -208,9 +219,8 @@ const ClinicalTerminal: React.FC = () => {
 
           <div className="space-y-4">
             {currentQ.options.map((option, idx) => {
-              // Determine styling state
               let stateClass = "border-slate-700 bg-slate-900/50 hover:bg-slate-800"
-              const optionIndex = option.index !== undefined ? option.index : idx; // Fallback if index missing
+              const optionIndex = option.index !== undefined ? option.index : idx;
 
               if (selectedOption === optionIndex) {
                 if (feedback === 'correct') stateClass = "border-medical-success bg-medical-success/10 text-white shadow-[0_0_20px_rgba(16,185,129,0.2)]"
@@ -222,7 +232,7 @@ const ClinicalTerminal: React.FC = () => {
 
               return (
                 <button
-                  key={option.id || idx} // Use unique ID if available
+                  key={option.id || idx}
                   onClick={() => handleOptionSelect(optionIndex)}
                   disabled={selectedOption !== null}
                   className={`w-full p-6 text-left rounded-xl border transition-all duration-200 group relative overflow-hidden ${stateClass}`}
@@ -234,7 +244,7 @@ const ClinicalTerminal: React.FC = () => {
                     `}>
                       {String.fromCharCode(65 + idx)}
                     </div>
-                    {/* 5. Fix: Render option.text (string), not option (object) */}
+                    {/* FIX: Render text string, not object */}
                     <span className="flex-1 font-clinical text-lg">{option.text}</span>
                     
                     {feedback === 'correct' && selectedOption === optionIndex && <CheckCircle className="text-medical-success w-6 h-6" />}
@@ -245,23 +255,17 @@ const ClinicalTerminal: React.FC = () => {
             })}
           </div>
 
-          {/* Feedback Overlay Message */}
+          {/* Feedback Overlay Message - Only Visual */}
           <AnimatePresence>
             {feedback && (
               <motion.div 
-                {...({
-                  initial: { opacity: 0, y: 10 },
-                  animate: { opacity: 1, y: 0 },
-                  exit: { opacity: 0 },
-                  className: `mt-8 text-center font-bold tracking-widest uppercase ${feedback === 'correct' ? 'text-medical-success' : 'text-medical-alert'}`
-                } as any)}
+                key="feedback-overlay"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={`mt-8 text-center font-bold tracking-widest uppercase ${feedback === 'correct' ? 'text-medical-success' : 'text-medical-alert'}`}
               >
-                {feedback === 'correct' ? 'VITALS STABILIZED // +10 PTS' : 'KNOWLEDGE GAP DETECTED // REVIEW PROTOCOLS'}
-                
-                {/* 6. Fix: Added a manual "Next" button prompt for clarity, though it auto-advances */}
-                <div className="text-slate-500 text-xs mt-2 font-mono">
-                   ADVANCING TO NEXT SCENARIO...
-                </div>
+                {feedback === 'correct' ? 'VITALS STABILIZED // +10 PTS' : 'INTERVENTION FAILED // PROCEEDING...'}
               </motion.div>
             )}
           </AnimatePresence>
